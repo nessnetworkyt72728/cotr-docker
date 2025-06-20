@@ -25,22 +25,54 @@ jobs:
         # 'load: true' is crucial here as it makes the built image available for subsequent steps in the same job.
         uses: docker/build-push-action@v6
         with:
-          # IMPORTANT: The Dockerfile is now correctly pointed to the 'cotr-server' subdirectory.
+          # IMPORTANT: The Dockerfile is correctly pointed to the 'cotr-server' subdirectory.
           # If you move your Dockerfile again, this 'context' path will need to be updated.
-          context: ./cotr-server/ # <--- THIS LINE HAS BEEN UPDATED!
+          context: ./cotr-server/ # <--- This line points to the subdirectory where your Dockerfile is.
           load: true # Load the image into the local Docker daemon of the GitHub Actions runner
           tags: cotr-docker-test:latest # Assign a tag to your image for easy reference
 
-      - name: Run COTR application (as a test)
-        # This step will only run if the 'Build COTR Docker image' step completes successfully.
-        # The Dockerfile specifies 'CMD ["/bin/cotr"]'. Running the image without
-        # additional commands will execute this default command.
-        # The success or failure of this step depends on '/bin/cotr' exiting with a zero or non-zero status code.
+      - name: Run COTR application in background and test connectivity
+        # This step starts the COTR server in a Docker container in detached mode (-d).
+        # We assign a name (--name) for easy reference and map a port (-p).
+        # ASSUMPTION: 'cotr' listens on port 8080. If it's different, change '8080:8080' to 'YOUR_PORT:YOUR_PORT'.
+        # We then wait and use 'curl' to check if the server is responsive.
         run: |
-          echo "--- STARTING COTR APPLICATION FOR TESTING ---"
-          docker run --rm cotr-docker-test
-          echo "--- COTR APPLICATION TEST FINISHED ---"
+          echo "--- STARTING COTR APPLICATION IN BACKGROUND ---"
+          docker run -d --name cotr-server-instance -p 8080:8080 cotr-docker-test
+
+          echo "Waiting for COTR server to start (max 60 seconds)..."
+          # Loop to check for server readiness with a timeout
+          for i in $(seq 1 60); do
+            # Use 'curl -f' to fail silently on HTTP errors (e.g., 404, 500)
+            # Use '--max-time 2' for a quick timeout on each attempt
+            # Use '--retry 5' for up to 5 retries if the initial connection fails
+            if curl -f http://localhost:8080/ > /dev/null 2>&1; then
+              echo "COTR server is up and responsive!"
+              break
+            fi
+            echo "Attempt $i: COTR server not yet responsive. Waiting..."
+            sleep 1
+          done
+
+          # Check if the server is actually responsive after the loop
+          if ! curl -f http://localhost:8080/ > /dev/null 2>&1; then
+            echo "Error: COTR server did not become responsive within the timeout."
+            docker logs cotr-server-instance # Print logs for debugging
+            exit 1
+          fi
+
+          echo "--- COTR APPLICATION CONNECTIVITY TEST PASSED ---"
 
         # The 'if: always()' ensures this step's logs are visible even if previous steps failed,
         # which is helpful for debugging purposes.
         if: always()
+
+      - name: Stop and remove COTR container
+        # This step ensures the container is stopped and removed, cleaning up the runner environment.
+        # It uses 'if: always()' to ensure cleanup happens even if previous steps failed.
+        if: always()
+        run: |
+          echo "--- STOPPING AND REMOVING COTR CONTAINER ---"
+          docker stop cotr-server-instance || true # Stop the container, '|| true' prevents failure if not running
+          docker rm cotr-server-instance || true # Remove the container, '|| true' prevents failure if not existing
+          echo "--- COTR CONTAINER CLEANUP COMPLETE ---"
