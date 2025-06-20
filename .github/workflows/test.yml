@@ -1,0 +1,44 @@
+name: Test COTR Docker
+
+on:
+  push:
+    branches:
+      - main # Trigger this workflow whenever code is pushed to the 'main' branch
+  pull_request:
+    branches:
+      - main # Trigger on pull requests targeting the 'main' branch
+  workflow_dispatch: # This allows you to manually trigger the workflow from the 'Actions' tab on GitHub
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest # Run this job on a fresh Ubuntu virtual machine provided by GitHub
+
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4 # Essential step to get your project's code onto the runner
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3 # Prepares the environment for efficient Docker image building
+
+      - name: Build COTR Docker image
+        # This step builds your Docker image from the Dockerfile in your repository's root.
+        # 'load: true' is crucial here as it makes the built image available for subsequent steps in the same job.
+        uses: docker/build-push-action@v6
+        with:
+          context: . # The build context is the current directory (your repo's root)
+          load: true # Load the image into the local Docker daemon of the GitHub Actions runner
+          tags: cotr-docker-test:latest # Assign a tag to your image for easy reference
+
+      - name: Run COTR application (as a test)
+        # The Dockerfile specifies 'CMD ["/bin/cotr"]'.
+        # Running the image without additional commands will execute this default.
+        # The success or failure of this step will depend on how '/bin/cotr' behaves.
+        # If '/bin/cotr' exits with a non-zero status code, this step will fail.
+        run: |
+          echo "--- STARTING COTR APPLICATION FOR TESTING ---"
+          docker run --rm cotr-docker-test
+          echo "--- COTR APPLICATION TEST FINISHED ---"
+
+        # The 'if: always()' ensures this step runs even if previous steps failed,
+        # helping you debug issues by always seeing the test output.
+        if: always()
