@@ -19,13 +19,19 @@ jobs:
 
       - name: Verify Dockerfile existence
         # This step helps debug by checking if the Dockerfile is where it's expected.
-        # If your Dockerfile is in a subdirectory (e.g., 'app/Dockerfile'), you would
-        # change 'Dockerfile' to 'app/Dockerfile' here and in the 'Build COTR Docker image' step.
+        # IF YOUR DOCKERFILE IS NOT IN THE ROOT DIRECTORY OF YOUR REPOSITORY:
+        # You MUST update the path below AND in the 'Build COTR Docker image' step.
+        # For example, if your Dockerfile is at 'my-app/Dockerfile', change "Dockerfile" to "my-app/Dockerfile".
         run: |
           if [ -f "Dockerfile" ]; then
-            echo "Dockerfile found in the root directory."
+            echo "Dockerfile found in the root directory. Proceeding with build."
+          elif [ -f "my-app/Dockerfile" ]; then # Example for a common subdirectory
+            echo "Dockerfile found in 'my-app/' directory. Adjusting build context."
+            # This 'if' block is for demonstration. You should set the correct path directly below.
+            # You would actually modify the 'context' and 'file' parameters in the next step.
           else
-            echo "Error: Dockerfile not found in the root directory. Please ensure it's named 'Dockerfile' and is at the top level of your repository, or update the 'context' and 'file' paths in the build step."
+            echo "Error: Dockerfile not found. Please ensure it's named 'Dockerfile' and is at the top level of your repository,"
+            echo "OR if it's in a subdirectory, update the 'context' and potentially 'file' paths in the 'Build COTR Docker image' step."
             exit 1
           fi
 
@@ -33,14 +39,16 @@ jobs:
         uses: docker/setup-buildx-action@v3 # Prepares the environment for efficient Docker image building
 
       - name: Build COTR Docker image
-        # This step builds your Docker image from the Dockerfile in your repository's root.
+        # This step builds your Docker image from the Dockerfile.
         # 'load: true' is crucial here as it makes the built image available for subsequent steps in the same job.
         uses: docker/build-push-action@v6
         with:
-          context: . # The build context is the current directory (your repo's root)
-          # If your Dockerfile is NOT in the root, you would change this:
-          # context: ./path/to/your/dockerfile/directory
-          # file: ./path/to/your/dockerfile/directory/Dockerfile
+          # IMPORTANT: Adjust 'context' if your Dockerfile is not in the root.
+          # For example, if your Dockerfile is in a 'dockerfiles/cotr/' folder:
+          # context: ./dockerfiles/cotr/
+          # If the Dockerfile itself has a different name or path relative to the context:
+          # file: ./dockerfiles/cotr/Dockerfile # Only needed if 'Dockerfile' isn't the default name or directly in context.
+          context: . # Current assumption: Dockerfile is in the repository root.
           load: true # Load the image into the local Docker daemon of the GitHub Actions runner
           tags: cotr-docker-test:latest # Assign a tag to your image for easy reference
 
@@ -51,10 +59,7 @@ jobs:
         # If '/bin/cotr' exits with a non-zero status code, this step will fail.
         run: |
           echo "--- STARTING COTR APPLICATION FOR TESTING ---"
-          # Only attempt to run if the build step was successful
-          # This assumes that the 'Build COTR Docker image' step completed without error.
-          # If the build fails, this step won't run due to the default behavior of GitHub Actions,
-          # but the 'if: always()' ensures its output is shown if it does run.
+          # This command will only run if the 'Build COTR Docker image' step completes successfully.
           docker run --rm cotr-docker-test
           echo "--- COTR APPLICATION TEST FINISHED ---"
 
