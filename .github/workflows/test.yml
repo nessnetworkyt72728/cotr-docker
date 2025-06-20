@@ -17,19 +17,6 @@ jobs:
       - name: Checkout repository code
         uses: actions/checkout@v4 # Essential step to get your project's code onto the runner
 
-      - name: Verify Dockerfile existence
-        # This step checks if a Dockerfile exists at the root, which is the default 'context: .'
-        # If this step fails, it means your Dockerfile is NOT in the root directory.
-        run: |
-          if [ -f "Dockerfile" ]; then
-            echo "Dockerfile found in the root directory. Proceeding with build."
-          else
-            echo "Error: Dockerfile not found in the root directory."
-            echo "Please ensure your Dockerfile is named 'Dockerfile' (with a capital 'D') and is at the top level of your repository."
-            echo "Alternatively, if it's in a subdirectory (e.g., 'my-project/Dockerfile'), you MUST update the 'context' parameter in the 'Build COTR Docker image' step below."
-            exit 1
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3 # Prepares the environment for efficient Docker image building
 
@@ -38,21 +25,9 @@ jobs:
         # 'load: true' is crucial here as it makes the built image available for subsequent steps in the same job.
         uses: docker/build-push-action@v6
         with:
-          # IMPORTANT: You MUST adjust 'context' (and potentially 'file') if your Dockerfile is NOT in the root.
-          # Example 1: If your Dockerfile is in a folder named 'my-project' directly in your repository's root:
-          # context: ./my-project/
-          #
-          # Example 2: If your Dockerfile is in 'another-folder/docker-builds/':
-          # context: ./another-folder/docker-builds/
-          #
-          # Example 3: If your Dockerfile is named 'MyCustomDockerfile' in the root:
-          # context: .
-          # file: ./MyCustomDockerfile
-          #
-          # Example 4: If your Dockerfile is named 'MyCustomDockerfile' within 'my-project/':
-          # context: ./my-project/
-          # file: ./my-project/MyCustomDockerfile
-          context: . # <--- CHANGE THIS LINE IF YOUR DOCKERFILE IS NOT IN THE REPOSITORY ROOT!
+          # IMPORTANT: The Dockerfile is now correctly pointed to the 'cotr-server' subdirectory.
+          # If you move your Dockerfile again, this 'context' path will need to be updated.
+          context: ./cotr-server/ # <--- THIS LINE HAS BEEN UPDATED!
           load: true # Load the image into the local Docker daemon of the GitHub Actions runner
           tags: cotr-docker-test:latest # Assign a tag to your image for easy reference
 
