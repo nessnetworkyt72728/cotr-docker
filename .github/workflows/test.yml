@@ -17,6 +17,18 @@ jobs:
       - name: Checkout repository code
         uses: actions/checkout@v4 # Essential step to get your project's code onto the runner
 
+      - name: Verify Dockerfile existence
+        # This step helps debug by checking if the Dockerfile is where it's expected.
+        # If your Dockerfile is in a subdirectory (e.g., 'app/Dockerfile'), you would
+        # change 'Dockerfile' to 'app/Dockerfile' here and in the 'Build COTR Docker image' step.
+        run: |
+          if [ -f "Dockerfile" ]; then
+            echo "Dockerfile found in the root directory."
+          else
+            echo "Error: Dockerfile not found in the root directory. Please ensure it's named 'Dockerfile' and is at the top level of your repository, or update the 'context' and 'file' paths in the build step."
+            exit 1
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3 # Prepares the environment for efficient Docker image building
 
@@ -26,6 +38,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: . # The build context is the current directory (your repo's root)
+          # If your Dockerfile is NOT in the root, you would change this:
+          # context: ./path/to/your/dockerfile/directory
+          # file: ./path/to/your/dockerfile/directory/Dockerfile
           load: true # Load the image into the local Docker daemon of the GitHub Actions runner
           tags: cotr-docker-test:latest # Assign a tag to your image for easy reference
 
@@ -36,6 +51,10 @@ jobs:
         # If '/bin/cotr' exits with a non-zero status code, this step will fail.
         run: |
           echo "--- STARTING COTR APPLICATION FOR TESTING ---"
+          # Only attempt to run if the build step was successful
+          # This assumes that the 'Build COTR Docker image' step completed without error.
+          # If the build fails, this step won't run due to the default behavior of GitHub Actions,
+          # but the 'if: always()' ensures its output is shown if it does run.
           docker run --rm cotr-docker-test
           echo "--- COTR APPLICATION TEST FINISHED ---"
 
